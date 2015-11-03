@@ -51,29 +51,46 @@ def analyze(Paths):
 
     # clear old images so we do not present them by mistake
     clearFolder('images')
-
+    print "Calculating b0 map"
     # get the first zero element's index
     b0Index = np.where(bvals == 0)[0][0]
     # b0 map calculation
     b0map = data[:, :, :, b0Index]
     createSliceViews(b0map, '-b0')
 
+    print "Calculating DWI map"
     # get the list of all non-zero element's indices
     dwiIndices = np.where(bvals != 0)[0].tolist()
     # dwi map calculation. get the mean value of the 4th axis
     DWImap = data[:, :, :, dwiIndices].mean(axis=3)
     createSliceViews(DWImap, '-dwi')
 
+    print "Calculating FA map"
     # FA map calculation.heavy computation,needs caching and/or optimization.
     # maskdata used according to dipy examples.
     # also problems occured for zero-filled, one-dimensional bvecs
     if len(bvecs.shape) != 1:
         gtab = gradient_table(bvals, bvecs)
-        maskdata, mask = median_otsu(data)
-        tenmodel = dti.TensorModel(gtab)
-        tenfit = tenmodel.fit(maskdata)
-        FAmap = dti.fractional_anisotropy(tenfit.evals)
-        createSliceViews(FAmap, '-fa')
+        print "Calculating tensor model"
+        tenmodel = dti.TensorModel(gtab, fit_method='OLS')
+        indexes = np.shape(data)
+        sagittalData = data[indexes[0]/2, :, :, :]
+        coronalData = data[:, indexes[1]/2, :, :]
+        axialData = data[:, :, indexes[2]/2, :]
+        print "Calculating saggital slice"
+        createFAmapSliceViews(sagittalData, 'sagittal', tenmodel)
+        print "Calculating coronal slice"
+        createFAmapSliceViews(coronalData, 'coronal', tenmodel)
+        print "Calculating axial slice"
+        createFAmapSliceViews(axialData, 'axial', tenmodel)
+        print "Ready"
+
+
+def createFAmapSliceViews(data, name, tenmodel):
+    maskdata, mask = median_otsu(data)
+    tenfit = tenmodel.fit(maskdata)
+    FAmap = dti.fractional_anisotropy(tenfit.evals)
+    scipy.misc.imsave('images/' + name + '-fa.jpg', FAmap)
 
 
 def createSliceViews(inputMap, suffix):
@@ -87,10 +104,10 @@ def createSliceViews(inputMap, suffix):
 
 
 def clearFolder(name):
-    imagesPath = os.path.join(settings.BASE_DIR, name)
-    shutil.rmtree(imagesPath)
-    if not os.path.exists(imagesPath):
-        os.makedirs(imagesPath)
+    folderPath = os.path.join(settings.BASE_DIR, name)
+    if os.path.exists(folderPath):
+        shutil.rmtree(folderPath)
+    os.makedirs(folderPath)
 
 
 def loadBvalsBvecs(bvalsPath, bvecsPath):

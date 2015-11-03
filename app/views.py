@@ -12,6 +12,7 @@ def index(request):
 
 def result(request):
     url = request.POST.get('url')
+    print "Getting file"
     cached = cache.get(url)
     if cached:
         response = cached
